@@ -395,16 +395,7 @@ public class PlayerVaults extends JavaPlugin {
     }
 
     private void loadConfig() {
-        File configYaml = new File(this.getDataFolder(), "config.yml");
-        if (!(new File(this.getDataFolder(), "config.conf").exists()) && configYaml.exists()) {
-            this.config.setFromConfig(this.getLogger(), this.getConfig());
-            try {
-                Files.move(configYaml.toPath(), this.getDataFolder().toPath().resolve("old_unused_config.yml"));
-            } catch (Exception e) {
-                this.getLogger().log(Level.SEVERE, "Failed to move config for backup: " + e.getMessage());
-                configYaml.deleteOnExit();
-            }
-        }
+        archiveLegacyHocon("config");
 
         try {
             Loader.loadAndSave("config", this.config);
@@ -452,31 +443,31 @@ public class PlayerVaults extends JavaPlugin {
             this.blockWithoutModelData = false;
         }
 
-        File lang = new File(this.getDataFolder(), "lang");
-        if (lang.exists()) {
-            this.getLogger().warning("There is no clean way for us to migrate your old lang data.");
-            this.getLogger().warning("If you made any customizations, or used another language, you need to migrate the info to the new format in lang.conf");
-            try {
-                Files.move(lang.toPath(), lang.getParentFile().toPath().resolve("old_unused_lang"));
-            } catch (Exception e) {
-                this.getLogger().log(Level.SEVERE, "Failed to rename lang folder as it is no longer used: " + e.getMessage());
-                configYaml.deleteOnExit();
-            }
-        }
+        archiveLegacyHocon("lang");
 
         try {
-            Path langPath = this.getDataFolder().toPath().resolve("lang.conf");
-            if (Files.exists(langPath)) {
-                List<String> lines = Files.readAllLines(langPath);
-                List<String> updatedLines = new ArrayList<>();
-                lines.forEach(line -> updatedLines.add(line.replaceAll("\\{(vault|player|price|count|item)}", "<$1>")));
-                Files.write(langPath, updatedLines.stream().collect(Collectors.joining("\n")).getBytes());
-            }
             Loader.loadAndSave("lang", this.translation);
         } catch (IOException | IllegalAccessException e) {
             this.getLogger().log(Level.SEVERE, "Could not load lang.", e);
         }
         this.translation.cleanupMiniMessup();
+    }
+
+    /**
+     * Clean break to YAML: if an old HOCON {@code <name>.conf} is still present and no
+     * {@code <name>.yml} exists yet, archive it so the admin can copy custom values over.
+     */
+    private void archiveLegacyHocon(String name) {
+        Path folder = this.getDataFolder().toPath();
+        Path conf = folder.resolve(name + ".conf");
+        if (Files.exists(conf) && !Files.exists(folder.resolve(name + ".yml"))) {
+            try {
+                Files.move(conf, folder.resolve("old_unused_" + name + ".conf"));
+                this.getLogger().info("Migrated to YAML: archived " + name + ".conf as old_unused_" + name + ".conf. Re-apply any custom values in " + name + ".yml.");
+            } catch (Exception e) {
+                this.getLogger().warning("Could not archive old " + name + ".conf: " + e.getMessage());
+            }
+        }
     }
 
     public Config getConf() {

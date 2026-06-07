@@ -18,12 +18,10 @@
 package com.drtshock.playervaults.config.file;
 
 import com.drtshock.playervaults.config.annotation.Comment;
-import org.bukkit.configuration.file.FileConfiguration;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.logging.Logger;
 
 @SuppressWarnings({"FieldMayBeFinal", "FieldCanBeLocal", "InnerClassMayBeStatic", "unused"})
 public class Config {
@@ -102,6 +100,18 @@ public class Config {
     }
 
     public class Storage {
+        @Comment("""
+                Where vaults are stored. Options:
+                 flatfile - one YAML file per player (no setup, the default).
+                 h2       - embedded SQL database in the plugin folder (no setup, single server).
+                 mariadb  - external MariaDB/MySQL server (configure below).
+                Switching to h2/mariadb auto-imports existing flatfile vaults once (flatfile is kept as a backup).""")
+        private String storageType = "flatfile";
+
+        private FlatFile flatFile = new FlatFile();
+        private H2 h2 = new H2();
+        private MariaDB mariadb = new MariaDB();
+
         public class FlatFile {
             @Comment("""
                     Backups
@@ -113,15 +123,78 @@ public class Config {
             }
         }
 
-        private FlatFile flatFile = new FlatFile();
-        private String storageType = "flatfile";
+        public class H2 {
+            @Comment("Name of the embedded database file, created inside the plugin folder.")
+            private String file = "vaults";
+
+            public String getFile() {
+                return this.file;
+            }
+        }
+
+        public class MariaDB {
+            private String host = "localhost";
+            private int port = 3306;
+            private String database = "playervaults";
+            private String username = "root";
+            private String password = "";
+
+            @Comment("Prefix for this plugin's tables (lets several plugins share one database).")
+            private String tablePrefix = "pv_";
+
+            @Comment("Maximum number of pooled connections.")
+            private int poolSize = 8;
+
+            @Comment("Extra JDBC parameters appended to the connection URL (ampersand-separated).")
+            private String properties = "useSSL=false&allowPublicKeyRetrieval=true";
+
+            public String getHost() {
+                return this.host;
+            }
+
+            public int getPort() {
+                return this.port;
+            }
+
+            public String getDatabase() {
+                return this.database;
+            }
+
+            public String getUsername() {
+                return this.username;
+            }
+
+            public String getPassword() {
+                return this.password;
+            }
+
+            public String getTablePrefix() {
+                return this.tablePrefix;
+            }
+
+            public int getPoolSize() {
+                return this.poolSize;
+            }
+
+            public String getProperties() {
+                return this.properties;
+            }
+        }
+
+        public String getStorageType() {
+            return this.storageType;
+        }
 
         public FlatFile getFlatFile() {
             return this.flatFile;
         }
 
-        public String getStorageType() {
-            return this.storageType;
+        public H2 getH2() {
+            return this.h2;
+        }
+
+        public MariaDB getMariaDB() {
+            return this.mariadb;
         }
     }
 
@@ -174,28 +247,6 @@ public class Config {
 
     @Comment("Storage option. Currently only flatfile, but soon more! :)")
     private Storage storage = new Storage();
-
-    public void setFromConfig(Logger l, FileConfiguration c) {
-        l.info("Importing old configuration...");
-        l.info("debug = " + (this.debug = c.getBoolean("debug", false)));
-        l.info("signs = " + (this.signs = c.getBoolean("signs-enabled", false)));
-        l.info("economy enabled = " + (this.economy.enabled = c.getBoolean("economy.enabled", false)));
-        l.info(" creation fee = " + (this.economy.feeToCreate = c.getDouble("economy.cost-to-create", 100)));
-        l.info(" open fee = " + (this.economy.feeToOpen = c.getDouble("economy.cost-to-open", 10)));
-        l.info(" refund = " + (this.economy.refundOnDelete = c.getDouble("economy.refund-on-delete", 50)));
-        l.info("item blocking enabled = " + (this.itemBlocking.enabled = c.getBoolean("blockitems", true)));
-        l.info("blocked items = " + (this.itemBlocking.list = c.getStringList("blocked-items")));
-        if (this.itemBlocking.list == null) {
-            this.itemBlocking.list = new ArrayList<>();
-            this.itemBlocking.list.add("PUMPKIN");
-            this.itemBlocking.list.add("DIAMOND_BLOCK");
-            l.info(" set defaults: " + this.itemBlocking.list);
-        }
-        l.info("cleanup purge enabled = " + (this.purge.enabled = c.getBoolean("cleanup.enable", false)));
-        l.info(" days since last edit = " + (this.purge.daysSinceLastEdit = c.getInt("cleanup.lastEdit", 30)));
-        l.info("flatfile storage backups = " + (this.storage.flatFile.backups = c.getBoolean("backups.enabled", true)));
-        l.info("max vault amount to test via perms = " + (this.maxVaultAmountPermTest = c.getInt("max-vault-amount-perm-to-test", 99)));
-    }
 
     public boolean isDebug() {
         return this.debug;
