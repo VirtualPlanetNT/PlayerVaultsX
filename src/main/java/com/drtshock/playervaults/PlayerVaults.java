@@ -484,6 +484,18 @@ public class PlayerVaults extends JavaPlugin {
 
     private void loadSigns() {
         File signs = new File(getDataFolder(), "signs.yml");
+        this.signsFile = signs;
+
+        if (!getConf().isSigns()) {
+            // Signs disabled: never create signs.yml. Tidy up an empty leftover, but keep one that
+            // still holds data (so temporarily disabling signs doesn't lose registered signs).
+            if (signs.exists() && YamlConfiguration.loadConfiguration(signs).getKeys(false).isEmpty()) {
+                signs.delete();
+            }
+            this.signs = new YamlConfiguration(); // in-memory only, never written while disabled
+            return;
+        }
+
         if (!signs.exists()) {
             try {
                 signs.createNewFile();
@@ -493,7 +505,6 @@ public class PlayerVaults extends JavaPlugin {
                 e.printStackTrace();
             }
         }
-        this.signsFile = signs;
         this.signs = YamlConfiguration.loadConfiguration(signs);
     }
 
