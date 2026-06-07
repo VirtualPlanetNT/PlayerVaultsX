@@ -98,7 +98,12 @@ public class VaultCommand implements CommandExecutor {
                     }
                     break;
                 default:
-                    this.plugin.getTL().help().title().send(sender);
+                    int maxVaults = VaultOperations.countVaults(player);
+                    if (maxVaults <= 0) {
+                        this.plugin.getTL().noVaultsAvailable().title().send(sender);
+                    } else {
+                        this.plugin.getTL().help().title().with("max", String.valueOf(maxVaults)).send(sender);
+                    }
             }
         } else {
             this.plugin.getTL().playerOnly().title().send(sender);

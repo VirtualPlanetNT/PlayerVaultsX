@@ -5,10 +5,7 @@ import com.drtshock.playervaults.config.annotation.Comment;
 import com.drtshock.playervaults.util.ComponentDispatcher;
 import com.google.common.collect.ImmutableMap;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.minimessage.MiniMessage;
-import net.kyori.adventure.text.minimessage.tag.Tag;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
@@ -29,6 +26,36 @@ import java.util.stream.Collectors;
 public class Translation {
     public static class TL extends ArrayList<String> {
         private static transient PlayerVaults plugin;
+
+        // Legacy '&'/'§' colour & format codes -> MiniMessage tag names.
+        private static final transient Map<Character, String> LEGACY_TAGS = buildLegacyTags();
+
+        private static @NonNull Map<Character, String> buildLegacyTags() {
+            Map<Character, String> m = new HashMap<>();
+            m.put('0', "black");
+            m.put('1', "dark_blue");
+            m.put('2', "dark_green");
+            m.put('3', "dark_aqua");
+            m.put('4', "dark_red");
+            m.put('5', "dark_purple");
+            m.put('6', "gold");
+            m.put('7', "gray");
+            m.put('8', "dark_gray");
+            m.put('9', "blue");
+            m.put('a', "green");
+            m.put('b', "aqua");
+            m.put('c', "red");
+            m.put('d', "light_purple");
+            m.put('e', "yellow");
+            m.put('f', "white");
+            m.put('k', "obfuscated");
+            m.put('l', "bold");
+            m.put('m', "strikethrough");
+            m.put('n', "underlined");
+            m.put('o', "italic");
+            m.put('r', "reset");
+            return m;
+        }
 
         private static @NonNull TL of(@NonNull String... strings) {
             TL list = new TL();
@@ -90,7 +117,8 @@ public class Translation {
 
         private void send(@NonNull CommandSender sender, @NonNull Map<String, String> map, @Nullable TL title) {
             this.forEach(line -> {
-                if (line == null || line.isEmpty()) {
+                // An empty / blank message means "disabled": send nothing at all (no blank line).
+                if (line == null || line.isBlank()) {
                     return;
                 }
                 ComponentDispatcher.send(sender, this.getComponent(line, map, title));
@@ -98,16 +126,67 @@ public class Translation {
         }
 
         private @NonNull Component getComponent(@NonNull String line, @NonNull Map<String, String> map, @Nullable TL title) {
-            if (title != null && !title.isEmpty()) {
+            if (title != null && !title.isEmpty() && !title.get(0).isBlank()) {
                 line = title.get(0) + line;
             }
-            TagResolver.Builder tagResolverBuilder = TagResolver.builder();
-            TL.plugin.getTL().colorMappings().forEach((k, v) -> {
-                TextColor color = v.startsWith("#") ? TextColor.fromHexString(v) : NamedTextColor.NAMES.value(v);
-                tagResolverBuilder.tag(k, Tag.styling(color == null ? NamedTextColor.WHITE : color));
-            });
-            map.forEach((k, v) -> tagResolverBuilder.resolver(Placeholder.unparsed(k, v)));
-            return MiniMessage.miniMessage().deserialize(line, tagResolverBuilder.build());
+            line = convertLegacy(line);
+            TagResolver.Builder resolver = TagResolver.builder();
+            map.forEach((k, v) -> resolver.resolver(Placeholder.unparsed(k, v)));
+            return MiniMessage.miniMessage().deserialize(line, resolver.build());
+        }
+
+        /**
+         * Converts legacy {@code &}/{@code §} colour codes (and {@code &#rrggbb} hex) into the
+         * equivalent MiniMessage tags, so messages can be authored in either format. Unknown codes
+         * are left untouched.
+         * <p>
+         * To match legacy semantics, a <b>colour</b> code (and hex) emits {@code <reset>} first so it
+         * clears any previously applied formatting (bold/italic/...); <b>format</b> codes
+         * ({@code &l}, {@code &k}, ...) accumulate as in vanilla. This stops e.g. {@code &lBOLD &7rest}
+         * from bleeding bold into the rest of the line.
+         */
+        private static @NonNull String convertLegacy(@NonNull String input) {
+            if (input.indexOf('&') < 0 && input.indexOf('§') < 0) {
+                return input;
+            }
+            int len = input.length();
+            StringBuilder out = new StringBuilder(len + 16);
+            for (int i = 0; i < len; i++) {
+                char c = input.charAt(i);
+                if ((c == '&' || c == '§') && i + 1 < len) {
+                    char next = input.charAt(i + 1);
+                    if (next == '#' && i + 7 < len && isHex(input, i + 2)) {
+                        out.append("<reset><#").append(input, i + 2, i + 8).append('>');
+                        i += 7;
+                        continue;
+                    }
+                    char lower = Character.toLowerCase(next);
+                    String tag = LEGACY_TAGS.get(lower);
+                    if (tag != null) {
+                        if (isLegacyColor(lower)) {
+                            out.append("<reset>");
+                        }
+                        out.append('<').append(tag).append('>');
+                        i++;
+                        continue;
+                    }
+                }
+                out.append(c);
+            }
+            return out.toString();
+        }
+
+        private static boolean isLegacyColor(char c) {
+            return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+        }
+
+        private static boolean isHex(@NonNull String s, int start) {
+            for (int i = start; i < start + 6; i++) {
+                if (Character.digit(s.charAt(i), 16) < 0) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         public @NonNull String getLegacy() {
@@ -139,115 +218,57 @@ public class Translation {
         }
     }
 
-    public void cleanupMiniMessup() {
-        this.cleanupMiniMessup(this.translations.openVault);
-        this.cleanupMiniMessup(this.translations.openOtherVault);
-        this.cleanupMiniMessup(this.translations.invalidArgs);
-        this.cleanupMiniMessup(this.translations.deleteVault);
-        this.cleanupMiniMessup(this.translations.deleteOtherVault);
-        this.cleanupMiniMessup(this.translations.deleteOtherVaultAll);
-        this.cleanupMiniMessup(this.translations.playerOnly);
-        this.cleanupMiniMessup(this.translations.mustBeNumber);
-        this.cleanupMiniMessup(this.translations.noPerms);
-        this.cleanupMiniMessup(this.translations.insufficientFunds);
-        this.cleanupMiniMessup(this.translations.refundAmount);
-        this.cleanupMiniMessup(this.translations.costToCreate);
-        this.cleanupMiniMessup(this.translations.costToOpen);
-        this.cleanupMiniMessup(this.translations.vaultDoesNotExist);
-        this.cleanupMiniMessup(this.translations.clickASign);
-        this.cleanupMiniMessup(this.translations.notASign);
-        this.cleanupMiniMessup(this.translations.setSign);
-        this.cleanupMiniMessup(this.translations.existingVaults);
-        this.cleanupMiniMessup(this.translations.vaultTitle);
-        this.cleanupMiniMessup(this.translations.openWithSign);
-        this.cleanupMiniMessup(this.translations.noOwnerFound);
-        this.cleanupMiniMessup(this.translations.convertPluginNotFound);
-        this.cleanupMiniMessup(this.translations.convertComplete);
-        this.cleanupMiniMessup(this.translations.convertBackground);
-        this.cleanupMiniMessup(this.translations.locked);
-        this.cleanupMiniMessup(this.translations.help);
-        this.cleanupMiniMessup(this.translations.blockedItem);
-        this.cleanupMiniMessup(this.translations.blockedItemWithModelData);
-        this.cleanupMiniMessup(this.translations.blockedItemWithoutModelData);
-        this.cleanupMiniMessup(this.translations.blockedItemWithEnchantments);
-        this.cleanupMiniMessup(this.translations.signsDisabled);
-        this.cleanupMiniMessup(this.placeholders.title);
-        for (Map.Entry<String, String> entry : this.colorMappings.entrySet()) {
-            if (entry.getValue().contains("§")) {
-                this.cleanupMiniMessupAlert(entry.getValue());
-                entry.setValue(entry.getValue().replace('§', '&'));
-            }
-        }
-    }
-
-    private void cleanupMiniMessup(List<String> tl) {
-        for (int i = 0; i < tl.size(); i++) {
-            String line = tl.get(i);
-            if (line.contains("§")) {
-                this.cleanupMiniMessupAlert(line);
-                tl.set(i, line.replace('§', '&'));
-            }
-        }
-    }
-
-    private void cleanupMiniMessupAlert(String line) {
-        PlayerVaults.getInstance().getLogger().severe("Found section sign at lang.conf '" + line + "' - replacing with & in-game so you can notice and go fix it.");
-    }
-
     private static class Placeholders {
-        private TL title = TL.of("<dark_red>[<normal>PlayerVaults<dark_red>]: ");
+        private TL title = TL.of("<dark_red>[<white>PlayerVaults<dark_red>]: ");
     }
 
     private static class Translations {
-        // Be sure to add anything new to the cleanupMiniMessup list.
-        private TL openVault = TL.of("<normal>Opening vault <info><vault></info>");
-        private TL openOtherVault = TL.of("<normal>Opening vault <info><vault></info> of <info><player></info>");
-        private TL invalidArgs = TL.of("<error>Invalid args!");
-        private TL deleteVault = TL.of("<normal>Deleted vault <info><vault></info>");
-        private TL deleteOtherVault = TL.of("<normal>Deleted vault <info><vault></info> <normal>of <info><player></info>");
-        private TL deleteOtherVaultAll = TL.of("<dark_red>Deleted all vaults belonging to <info><player></info>");
-        private TL playerOnly = TL.of("<error>Sorry but that can only be run by a player!");
-        private TL mustBeNumber = TL.of("<error>You need to specify a valid number.");
-        private TL noPerms = TL.of("<error>You don't have permission for that!");
-        private TL insufficientFunds = TL.of("<error>You don't have enough money for that!");
-        private TL refundAmount = TL.of("<normal>You were refunded <info><price></info> for deleting that vault.");
-        private TL costToCreate = TL.of("<normal>You were charged <info><price></info> for creating a vault.");
-        private TL costToOpen = TL.of("<normal>You were charged <info><price></info> for opening that vault.");
-        private TL vaultDoesNotExist = TL.of("<error>That vault does not exist!");
-        private TL clickASign = TL.of("<normal>Now click a sign!");
-        private TL notASign = TL.of("<error>You must click a sign!");
-        private TL setSign = TL.of("<normal>You have successfully set a PlayerVault access sign!");
-        private TL existingVaults = TL.of("<normal><player> has vaults: <info><vault></info>");
+        private TL openVault = TL.of("<white>Opening vault <green><vault></green>");
+        private TL openOtherVault = TL.of("<white>Opening vault <green><vault></green> of <green><player></green>");
+        private TL invalidArgs = TL.of("<red>Invalid args!");
+        private TL deleteVault = TL.of("<white>Deleted vault <green><vault></green>");
+        private TL deleteOtherVault = TL.of("<white>Deleted vault <green><vault></green> of <green><player></green>");
+        private TL deleteOtherVaultAll = TL.of("<dark_red>Deleted all vaults belonging to <green><player></green>");
+        private TL playerOnly = TL.of("<red>Sorry but that can only be run by a player!");
+        private TL mustBeNumber = TL.of("<red>You need to specify a valid number.");
+        private TL noPerms = TL.of("<red>You don't have permission for that!");
+        private TL insufficientFunds = TL.of("<red>You don't have enough money for that!");
+        private TL refundAmount = TL.of("<white>You were refunded <green><price></green> for deleting that vault.");
+        private TL costToCreate = TL.of("<white>You were charged <green><price></green> for creating a vault.");
+        private TL costToOpen = TL.of("<white>You were charged <green><price></green> for opening that vault.");
+        private TL vaultDoesNotExist = TL.of("<red>That vault does not exist!");
+        private TL clickASign = TL.of("<white>Now click a sign!");
+        private TL notASign = TL.of("<red>You must click a sign!");
+        private TL setSign = TL.of("<white>You have successfully set a PlayerVault access sign!");
+        private TL existingVaults = TL.of("<white><player> has vaults: <green><vault></green>");
         private TL vaultTitle = TL.of("<dark_red>Vault #<vault>");
-        private TL openWithSign = TL.of("<normal>Opening vault <info><vault></info> of <info><player></info>");
-        private TL noOwnerFound = TL.of("<error>Cannot find vault owner: <info><player></info>");
-        private TL convertPluginNotFound = TL.of("<error>No converter found for that plugin.");
-        private TL convertComplete = TL.of("<normal>Converted <info><count></info> players to PlayerVaults.");
-        private TL convertBackground = TL.of("<normal>Conversion has been forked to the background. See console for updates.");
-        private TL locked = TL.of("<error>Vaults are currently locked while conversion occurs. Please try again in a moment!");
-        private TL help = TL.of("/pv <number>");
-        private TL blockedItem = TL.of("<gold><item></gold> <error>is blocked from vaults.");
-        private TL blockedItemWithModelData = TL.of("<error>This item is blocked from vaults.");
-        private TL blockedItemWithoutModelData = TL.of("<error>This item is blocked from vaults.");
-        private TL blockedItemWithEnchantments = TL.of("<error>This item's enchantments are blocked from vaults.");
-        private TL signsDisabled = TL.of("<error>Vault signs are currently disabled.");
+        private TL openWithSign = TL.of("<white>Opening vault <green><vault></green> of <green><player></green>");
+        private TL noOwnerFound = TL.of("<red>Cannot find vault owner: <green><player></green>");
+        private TL convertPluginNotFound = TL.of("<red>No converter found for that plugin.");
+        private TL convertComplete = TL.of("<white>Converted <green><count></green> players to PlayerVaults.");
+        private TL convertBackground = TL.of("<white>Conversion has been forked to the background. See console for updates.");
+        private TL locked = TL.of("<red>Vaults are currently locked while conversion occurs. Please try again in a moment!");
+        private TL help = TL.of("<red>Usage: <white>/pv [1-<max>]");
+        private TL noVaultsAvailable = TL.of("<red>You don't have access to any vaults.");
+        private TL blockedItem = TL.of("<gold><item></gold> <red>is blocked from vaults.");
+        private TL blockedItemWithModelData = TL.of("<red>This item is blocked from vaults.");
+        private TL blockedItemWithoutModelData = TL.of("<red>This item is blocked from vaults.");
+        private TL blockedItemWithEnchantments = TL.of("<red>This item's enchantments are blocked from vaults.");
+        private TL signsDisabled = TL.of("<red>Vault signs are currently disabled.");
     }
 
+    @Comment("""
+            Messages support MiniMessage (https://docs.advntr.dev/minimessage/format.html) AND
+            legacy '&' colour codes, e.g. '&#rrggbb' hex. Placeholders use <angle> brackets: <vault>,
+            <player>, <price>, <count>, <item>, and <max> (max vaults the player can use, in 'help').
+            On legacy clients (1.8) rich formatting is downsampled to the nearest colour.""")
     private Placeholders placeholders = new Placeholders();
+
     private Translations translations = new Translations();
 
     public Translation(@NonNull PlayerVaults plugin) {
         TL.plugin = plugin;
     }
-
-    @Comment("https://docs.adventure.kyori.net/minimessage.html#format")
-    private Map<String, String> colorMappings = new HashMap<>() {
-        {
-            this.put("error", "red");
-            this.put("normal", "white");
-            this.put("info", "green");
-        }
-    };
 
     public @NonNull TL title() {
         return this.placeholders.title;
@@ -357,6 +378,10 @@ public class Translation {
         return this.translations.help;
     }
 
+    public @NonNull TL noVaultsAvailable() {
+        return this.translations.noVaultsAvailable;
+    }
+
     public @NonNull TL blockedItem() {
         return this.translations.blockedItem;
     }
@@ -369,13 +394,11 @@ public class Translation {
         return this.translations.blockedItemWithoutModelData;
     }
 
-    public @NonNull TL blockedItemWithEnchantments() {return this.translations.blockedItemWithEnchantments;}
+    public @NonNull TL blockedItemWithEnchantments() {
+        return this.translations.blockedItemWithEnchantments;
+    }
 
     public @NonNull TL signsDisabled() {
         return this.translations.signsDisabled;
-    }
-
-    public @NonNull Map<String, String> colorMappings() {
-        return Collections.unmodifiableMap(this.colorMappings);
     }
 }
