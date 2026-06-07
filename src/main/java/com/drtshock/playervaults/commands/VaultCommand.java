@@ -98,7 +98,9 @@ public class VaultCommand implements CommandExecutor {
                     }
                     break;
                 default:
-                    int maxVaults = VaultOperations.countVaults(player);
+                    // Never advertise more vaults than the configured ceiling (matters for ops, who
+                    // hold every playervaults.amount.* permission up to maxVaultAmountPermTest).
+                    int maxVaults = Math.min(VaultOperations.countVaults(player), this.plugin.getMaxVaultAmountPermTest());
                     if (maxVaults <= 0) {
                         this.plugin.getTL().noVaultsAvailable().title().send(sender);
                     } else {
