@@ -34,6 +34,8 @@ import com.drtshock.playervaults.listeners.VaultPreloadListener;
 import com.drtshock.playervaults.placeholder.Papi;
 import com.drtshock.playervaults.tasks.Cleanup;
 import com.drtshock.playervaults.util.ComponentDispatcher;
+import com.drtshock.playervaults.util.EnchantmentCompat;
+import com.drtshock.playervaults.util.InventoryViewCompat;
 import com.drtshock.playervaults.util.Permission;
 import com.drtshock.playervaults.vaultmanagement.EconomyOperations;
 import com.drtshock.playervaults.vaultmanagement.VaultManager;
@@ -47,7 +49,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
-import org.bukkit.Registry;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.InvalidConfigurationException;
@@ -362,7 +363,7 @@ public class PlayerVaults extends JavaPlugin {
     public void onDisable() {
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (this.inVault.containsKey(player.getUniqueId().toString())) {
-                Inventory inventory = player.getOpenInventory().getTopInventory();
+                Inventory inventory = InventoryViewCompat.getTopInventory(player.getOpenInventory());
                 if (inventory.getViewers().size() == 1) {
                     VaultViewInfo info = this.inVault.get(player.getUniqueId().toString());
                     VaultManager.getInstance().saveVault(inventory, player.getUniqueId().toString(), info.getNumber());
@@ -432,7 +433,7 @@ public class PlayerVaults extends JavaPlugin {
             }
             boolean badEnch = false;
             for (String s : getConf().getItemBlocking().getEnchantmentsBlocked()) {
-                Enchantment ench = Registry.ENCHANTMENT.match(s);
+                Enchantment ench = EnchantmentCompat.match(s);
                 if (ench != null) {
                     blockedEnchs.add(ench);
                 } else {
@@ -441,7 +442,7 @@ public class PlayerVaults extends JavaPlugin {
                 }
             }
             if (badEnch) {
-                this.getLogger().info("Valid enchantent options: " + Registry.ENCHANTMENT.stream().map(e -> e.getKey().toString()).collect(Collectors.joining(", ")));
+                this.getLogger().info("Valid enchantent options: " + EnchantmentCompat.validOptions());
             }
         }
         try {

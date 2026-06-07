@@ -19,6 +19,7 @@
 package com.drtshock.playervaults.vaultmanagement;
 
 import com.drtshock.playervaults.PlayerVaults;
+import com.drtshock.playervaults.util.InventoryViewCompat;
 import com.drtshock.playervaults.util.Permission;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
@@ -26,7 +27,6 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.CraftingInventory;
 import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.InventoryView;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -60,8 +60,9 @@ public class VaultOperations {
         if (locked) {
             for (Player player : PlayerVaults.getInstance().getServer().getOnlinePlayers()) {
                 if (player.getOpenInventory() != null) {
-                    InventoryView view = player.getOpenInventory();
-                    if (view.getTopInventory().getHolder() instanceof VaultHolder) {
+                    Object view = player.getOpenInventory();
+                    Inventory top = InventoryViewCompat.getTopInventory(view);
+                    if (top != null && top.getHolder() instanceof VaultHolder) {
                         player.closeInventory();
                         PlayerVaults.getInstance().getTL().locked().title().send(player);
                     }
@@ -165,7 +166,8 @@ public class VaultOperations {
                 player.openInventory(inv);
 
                 // Check if the inventory was actually opened
-                if (player.getOpenInventory().getTopInventory() instanceof CraftingInventory || player.getOpenInventory().getTopInventory() == null) {
+                Inventory top = InventoryViewCompat.getTopInventory(player.getOpenInventory());
+                if (top instanceof CraftingInventory || top == null) {
                     PlayerVaults.debug(String.format("Cancelled opening vault %s for %s from an outside source.", arg, player.getName()));
                     return false; // inventory open event was cancelled.
                 }
@@ -252,7 +254,8 @@ public class VaultOperations {
             player.openInventory(inv);
 
             // Check if the inventory was actually opened
-            if (player.getOpenInventory().getTopInventory() instanceof CraftingInventory || player.getOpenInventory().getTopInventory() == null) {
+            Inventory top = InventoryViewCompat.getTopInventory(player.getOpenInventory());
+            if (top instanceof CraftingInventory || top == null) {
                 PlayerVaults.debug(String.format("Cancelled opening vault %s for %s from an outside source.", arg, player.getName()));
                 return false; // inventory open event was cancelled.
             }

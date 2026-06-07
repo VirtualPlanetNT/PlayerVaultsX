@@ -21,6 +21,7 @@ package com.drtshock.playervaults.listeners;
 import com.drtshock.playervaults.PlayerVaults;
 import com.drtshock.playervaults.config.file.Translation;
 import com.drtshock.playervaults.events.BlacklistedItemEvent;
+import com.drtshock.playervaults.util.InventoryViewCompat;
 import com.drtshock.playervaults.util.Permission;
 import com.drtshock.playervaults.vaultmanagement.VaultHolder;
 import com.drtshock.playervaults.vaultmanagement.VaultManager;
@@ -100,17 +101,17 @@ public class Listeners implements Listener {
         if (plugin.getInVault().containsKey(p.getUniqueId().toString())) {
             return;
         }
-        saveVault(p, p.getOpenInventory().getTopInventory());
+        saveVault(p, InventoryViewCompat.getTopInventory(p.getOpenInventory()));
     }
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onQuit(PlayerQuitEvent event) {
-        saveVault(event.getPlayer(), event.getPlayer().getOpenInventory().getTopInventory());
+        saveVault(event.getPlayer(), InventoryViewCompat.getTopInventory(event.getPlayer().getOpenInventory()));
     }
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onDeath(PlayerDeathEvent event) {
-        saveVault(event.getEntity(), event.getEntity().getOpenInventory().getTopInventory());
+        saveVault(event.getEntity(), InventoryViewCompat.getTopInventory(event.getEntity().getOpenInventory()));
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -140,7 +141,7 @@ public class Listeners implements Listener {
             VaultViewInfo info = PlayerVaults.getInstance().getInVault().get(player.getUniqueId().toString());
             if (info != null) {
                 int num = info.getNumber();
-                String inventoryTitle = event.getView().getTitle();
+                String inventoryTitle = InventoryViewCompat.getTitle(event.getView());
                 String title = this.plugin.getVaultTitle(String.valueOf(num));
                 if (inventoryTitle.equalsIgnoreCase(title)) {
                     ItemStack[] items = new ItemStack[2];
@@ -181,7 +182,7 @@ public class Listeners implements Listener {
             VaultViewInfo info = PlayerVaults.getInstance().getInVault().get(player.getUniqueId().toString());
             if (info != null) {
                 int num = info.getNumber();
-                String inventoryTitle = event.getView().getTitle();
+                String inventoryTitle = InventoryViewCompat.getTitle(event.getView());
                 String title = this.plugin.getVaultTitle(String.valueOf(num));
                 if ((inventoryTitle != null && inventoryTitle.equalsIgnoreCase(title)) && event.getNewItems() != null) {
                     if (!player.hasPermission(Permission.BYPASS_BLOCKED_ITEMS)) {
