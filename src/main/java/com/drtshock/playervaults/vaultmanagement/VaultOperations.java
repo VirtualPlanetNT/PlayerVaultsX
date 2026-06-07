@@ -379,7 +379,8 @@ public class VaultOperations {
     public static int countVaults(Player player) {
         UUID uuid = player.getUniqueId();
         PlayerCount count = countCache.get(uuid);
-        if (count != null && count.time().isAfter(Instant.now().plus(secondsToLive, ChronoUnit.SECONDS))) {
+        // Cache hit while the entry is still within its TTL (created in the last `secondsToLive`).
+        if (count != null && count.time().isAfter(Instant.now().minus(secondsToLive, ChronoUnit.SECONDS))) {
             return count.count;
         }
         int vaultCount = 0;
