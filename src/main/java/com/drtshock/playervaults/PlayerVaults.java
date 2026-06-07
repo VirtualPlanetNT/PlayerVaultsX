@@ -40,6 +40,8 @@ import com.drtshock.playervaults.util.Permission;
 import com.drtshock.playervaults.vaultmanagement.EconomyOperations;
 import com.drtshock.playervaults.vaultmanagement.VaultManager;
 import com.drtshock.playervaults.vaultmanagement.VaultViewInfo;
+import com.drtshock.playervaults.vaultmanagement.storage.Storages;
+import com.drtshock.playervaults.vaultmanagement.storage.VaultStorage;
 import com.google.gson.Gson;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
@@ -112,8 +114,8 @@ public class PlayerVaults extends JavaPlugin {
     private boolean saveQueued;
     private boolean backupsEnabled;
     private File backupsFolder;
-    private File uuidData;
     private File vaultData;
+    private VaultStorage storage;
     private String _versionString;
     private int maxVaultAmountPermTest;
     private Metrics metrics;
@@ -156,8 +158,10 @@ public class PlayerVaults extends JavaPlugin {
         DEBUG = getConf().isDebug();
         debug("config", time);
         time = System.currentTimeMillis();
-        vaultData = new File(this.getDataFolder(), "newvaults");
-        Conversion.convert(this);
+        vaultData = new File(this.getDataFolder(), "Vaults");
+        migrateLegacyVaultFolder();
+        this.storage = Storages.create(this);
+        getLogger().info("Using '" + this.storage.name() + "' storage backend.");
         new VaultManager(this);
         debug("conversion", time);
         time = System.currentTimeMillis();
@@ -381,6 +385,10 @@ public class PlayerVaults extends JavaPlugin {
         if (getConf().getPurge().isEnabled()) {
             saveSignsFile();
         }
+
+        if (this.storage != null) {
+            this.storage.close();
+        }
     }
 
     @Override
@@ -554,15 +562,24 @@ public class PlayerVaults extends JavaPlugin {
         return this.vaultData;
     }
 
+    public VaultStorage getStorage() {
+        return this.storage;
+    }
+
     /**
-     * Get the legacy UUID vault data folder.
-     * Deprecated in favor of base64 data.
-     *
-     * @return uuid folder
+     * One-time rename of the legacy "newvaults" data folder to "Vaults". Only renames an existing
+     * folder; it never creates one (so SQL backends leave no empty flatfile folder behind).
      */
-    @Deprecated
-    public File getUuidData() {
-        return this.uuidData;
+    private void migrateLegacyVaultFolder() {
+        File legacy = new File(this.getDataFolder(), "newvaults");
+        if (legacy.isDirectory() && !this.vaultData.exists()) {
+            if (legacy.renameTo(this.vaultData)) {
+                getLogger().info("Renamed legacy vault folder 'newvaults' -> 'Vaults'.");
+            } else {
+                getLogger().warning("Could not rename 'newvaults' to 'Vaults'; continuing to use 'newvaults'.");
+                this.vaultData = legacy;
+            }
+        }
     }
 
     public boolean isBackupsEnabled() {

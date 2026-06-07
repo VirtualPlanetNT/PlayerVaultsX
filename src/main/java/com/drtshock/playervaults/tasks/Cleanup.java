@@ -19,8 +19,7 @@
 package com.drtshock.playervaults.tasks;
 
 import com.drtshock.playervaults.PlayerVaults;
-
-import java.io.File;
+import com.drtshock.playervaults.vaultmanagement.storage.VaultStorage;
 
 public class Cleanup implements Runnable {
 
@@ -32,21 +31,13 @@ public class Cleanup implements Runnable {
 
     @Override
     public void run() {
-        File directory = PlayerVaults.getInstance().getVaultData();
-        if (!directory.exists()) {
-            // folder doesn't exist, don't run
+        VaultStorage storage = PlayerVaults.getInstance().getStorage();
+        if (storage == null) {
             return;
         }
-
-        long time = System.currentTimeMillis();
-        for (File file : directory.listFiles()) {
-            if (file.isDirectory()) {
-                continue;
-            }
-            if (time - file.lastModified() > diff) {
-                PlayerVaults.getInstance().getLogger().info("Deleting vault file (cleanup): " + file.getName());
-                file.delete();
-            }
+        int removed = storage.purge(this.diff);
+        if (removed > 0) {
+            PlayerVaults.getInstance().getLogger().info("Cleanup removed " + removed + " vault(s) untouched for too long.");
         }
     }
 }
