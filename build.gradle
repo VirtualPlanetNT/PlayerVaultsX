@@ -1,0 +1,145 @@
+plugins {
+    id 'java'
+    alias(libs.plugins.shadow)
+}
+
+group = 'com.drtshock'
+version = '4.4.13-SNAPSHOT'
+description = 'PlayerVaultsX'
+
+ext.pluginUrl = 'https://www.spigotmc.org/resources/51204/'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+repositories {
+    // Most dependencies (net.kyori adventure, gson, json-simple, checker-qual) live here.
+    mavenCentral()
+
+    // Spigot API + its transitives (net.md-5 bungeecord-chat, snakeyaml, ...).
+    maven { url = 'https://hub.spigotmc.org/nexus/content/groups/public/' }
+
+    // Each niche repo below is scoped to the group(s) it actually serves, so a slow or
+    // unreachable host can never block resolution of any other dependency (this is what
+    // makes IDE Gradle syncs hang). See gradle.properties for the HTTP timeouts.
+
+    // Vault API.
+    maven {
+        url = 'https://nexus.hc.to/content/repositories/pub_releases/'
+        content { includeGroup 'net.milkbowl.vault' }
+    }
+
+    // cardboardbox (dev.kitteh).
+    maven {
+        url = 'https://dependency.download/releases'
+        content { includeGroupByRegex 'dev\\.kitteh.*' }
+    }
+
+    // paste-gg-api (org.kitteh) — only published on this raw GitHub Maven repo.
+    maven {
+        url = 'https://raw.githubusercontent.com/factions-site/repo/public'
+        content { includeGroupByRegex 'org\\.kitteh.*' }
+    }
+
+    // PlaceholderAPI is ONLY published here (no Maven Central / mirror has me.clip).
+    // Scoped to me.clip so an ExtendedClip outage doesn't stall the rest of the sync.
+    maven {
+        url = 'https://repo.extendedclip.com/content/repositories/placeholderapi/'
+        content { includeGroup 'me.clip' }
+    }
+
+    // Fallback for the occasional GitHub-built dependency.
+    maven { url = 'https://jitpack.io' }
+}
+
+dependencies {
+    // Bundled & relocated into the final jar (Maven: scope compile, optional -> shaded)
+    implementation(libs.adventure.serializer.gson) {
+        exclude group: 'org.checkerframework', module: 'checker-qual'
+        exclude group: 'org.jetbrains', module: 'annotations'
+        exclude group: 'com.google.code.gson', module: 'gson'
+        exclude group: 'com.google.auto.service', module: 'auto-service-annotations'
+    }
+    implementation(libs.adventure.serializer.legacy) {
+        exclude group: 'org.checkerframework', module: 'checker-qual'
+        exclude group: 'org.jetbrains', module: 'annotations'
+    }
+    implementation(libs.adventure.minimessage) {
+        exclude group: 'org.checkerframework', module: 'checker-qual'
+        exclude group: 'org.jetbrains', module: 'annotations'
+    }
+    implementation(libs.cardboardbox)
+    implementation(libs.paste.gg.api)
+    implementation(libs.snakeyaml) // YAML config with comment support (relocated below)
+    implementation(libs.h2)        // embedded SQL storage backend (relocated below)
+    implementation(libs.mariadb)   // MariaDB storage backend (relocated below)
+    implementation(libs.hikari)    // connection pool for both SQL backends (relocated below)
+    implementation(libs.slf4j.api) // required by HikariCP (relocated below)
+    runtimeOnly(libs.slf4j.nop)    // silence HikariCP's own logging; our code logs SQL errors itself
+
+    // Provided by the server / other plugins at runtime (Maven: scope provided -> compileOnly)
+    compileOnly(libs.spigot.api)
+    compileOnly(libs.json.simple)
+    compileOnly(libs.vault.api)
+    compileOnly(libs.placeholderapi) {
+        exclude group: 'net.kyori', module: 'adventure-platform-bukkit'
+        exclude group: 'org.bstats', module: 'bstats-bukkit'
+        exclude group: 'org.jetbrains', module: 'annotations'
+    }
+    compileOnly(libs.checker.qual)
+}
+
+// Replicates Maven resource filtering of plugin.yml (${project.version} / ${project.url})
+tasks.named('processResources') {
+    def tokens = [version: version.toString(), url: pluginUrl]
+    inputs.properties(tokens)
+    filteringCharset = 'UTF-8'
+    filesMatching('plugin.yml') {
+        expand(project: tokens)
+    }
+}
+
+// Produce only the shaded jar (matches Maven's single PlayerVaultsX.jar output).
+tasks.named('jar') {
+    enabled = false
+}
+
+// Replicates the maven-shade-plugin (relocations) + maven-jar-plugin (manifest) configuration.
+tasks.named('shadowJar') {
+    archiveBaseName = 'PlayerVaultsX' // matches the Maven <finalName>
+    archiveClassifier = ''
+    archiveVersion = ''
+
+    relocate 'net.kyori', 'com.drtshock.playervaults.lib.net.kyori'
+    relocate 'org.kitteh', 'com.drtshock.playervaults.lib.org.kitteh'
+    relocate 'dev.kitteh', 'com.drtshock.playervaults.lib.dev.kitteh'
+    // Relocate our SnakeYAML so it never clashes with the (often ancient) one the server bundles.
+    relocate 'org.yaml.snakeyaml', 'com.drtshock.playervaults.lib.org.yaml.snakeyaml'
+    // Relocate the JDBC drivers + pool so multiple plugins bundling them never clash.
+    relocate 'org.h2', 'com.drtshock.playervaults.lib.org.h2'
+    relocate 'org.mariadb', 'com.drtshock.playervaults.lib.org.mariadb'
+    relocate 'com.zaxxer.hikari', 'com.drtshock.playervaults.lib.com.zaxxer.hikari'
+    relocate 'org.slf4j', 'com.drtshock.playervaults.lib.org.slf4j'
+
+    // Relocate (and merge) META-INF/services entries so ServiceLoader lookups resolve after
+    // relocation: adventure's GsonComponentSerializer.Provider (Paper path), MariaDB auth/codec
+    // plugins, and SLF4J's provider all use ServiceLoader.
+    mergeServiceFiles()
+
+    manifest {
+        attributes 'paperweight-mappings-namespace': 'mojang'
+    }
+}
+
+// The shaded jar is the artifact we want produced by the default `build`.
+tasks.named('build') {
+    dependsOn(tasks.named('shadowJar'))
+}

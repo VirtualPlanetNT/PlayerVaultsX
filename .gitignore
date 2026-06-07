@@ -6,11 +6,9 @@
 # netbeans
 /nbproject
 
-# we use maven!
-/build.xml
-
-# maven
-/target
+# gradle
+/.gradle
+!gradle/wrapper/gradle-wrapper.jar
 
 # vim
 .*.sw[a-p]

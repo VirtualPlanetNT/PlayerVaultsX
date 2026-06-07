@@ -1,0 +1,40 @@
+[versions]
+adventure = "4.25.0"
+cardboardbox = "3.1.0"
+paste-gg = "0.9.1"
+spigot = "1.21.10-R0.1-SNAPSHOT"
+json-simple = "1.1.1"
+vault = "1.7"
+placeholderapi = "2.11.6"
+checker-qual = "3.3.0"
+snakeyaml = "2.3"
+h2 = "2.3.232"
+mariadb = "3.5.2"
+hikari = "5.1.0"
+slf4j = "2.0.16"
+
+shadow = "9.4.2"
+
+[libraries]
+# Bundled & relocated into the final jar
+adventure-serializer-gson = { module = "net.kyori:adventure-text-serializer-gson", version.ref = "adventure" }
+adventure-serializer-legacy = { module = "net.kyori:adventure-text-serializer-legacy", version.ref = "adventure" }
+adventure-minimessage = { module = "net.kyori:adventure-text-minimessage", version.ref = "adventure" }
+cardboardbox = { module = "dev.kitteh:cardboardbox", version.ref = "cardboardbox" }
+paste-gg-api = { module = "org.kitteh:paste-gg-api", version.ref = "paste-gg" }
+snakeyaml = { module = "org.yaml:snakeyaml", version.ref = "snakeyaml" }
+h2 = { module = "com.h2database:h2", version.ref = "h2" }
+mariadb = { module = "org.mariadb.jdbc:mariadb-java-client", version.ref = "mariadb" }
+hikari = { module = "com.zaxxer:HikariCP", version.ref = "hikari" }
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+slf4j-nop = { module = "org.slf4j:slf4j-nop", version.ref = "slf4j" }
+
+# Provided by the server / other plugins at runtime
+spigot-api = { module = "org.spigotmc:spigot-api", version.ref = "spigot" }
+json-simple = { module = "com.googlecode.json-simple:json-simple", version.ref = "json-simple" }
+vault-api = { module = "net.milkbowl.vault:VaultAPI", version.ref = "vault" }
+placeholderapi = { module = "me.clip:placeholderapi", version.ref = "placeholderapi" }
+checker-qual = { module = "org.checkerframework:checker-qual", version.ref = "checker-qual" }
+
+[plugins]
+shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
